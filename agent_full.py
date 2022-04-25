@@ -1,14 +1,17 @@
 import torch
 import random
 import numpy as np
-from game import SnakeGameAI, Direction, Point
+from game import BLOCK_SIZE, SnakeGameAI, Direction, Point, Game_board_size
 from collections import deque
 from model import Linear_QNet, QTrainer
-from helper import plot
+from helper import *
 
 MAX_MEMORY = 100_000
 BATCH_SIZE = 1000
 LR = 0.001
+
+ROWS = 4  # 24  # even number
+COLONS = 4  # 32  # even number
 
 
 class Agent:
@@ -17,51 +20,42 @@ class Agent:
         self.epsilon = 0  # randomness
         self.gamma = 0.9  # discount rate <1
         self.memory = deque(maxlen=MAX_MEMORY)
-        self.model = Linear_QNet(11, 256, 3)
+        input_size = (ROWS + 2) * (COLONS + 2) + 2 * ROWS * COLONS
+        hidden_size = 2
+        while hidden_size < input_size:
+            hidden_size *= 2
+
+        print(f"{input_size=}, {hidden_size=}")
+        self.model = Linear_QNet(input_size, hidden_size, hidden_size, 3)
+
         self.trainer = QTrainer(self.model, lr=LR, gamma=self.gamma)
 
     def get_state(self, game):
-        head = game.snake[0]
 
-        point_l = Point(head.x - 20, head.y)
-        point_r = Point(head.x + 20, head.y)
-        point_u = Point(head.x, head.y - 20)
-        point_d = Point(head.x, head.y + 20)
+        # Blue
+        state_blue = np.zeros((ROWS, COLONS), dtype=np.int16)
 
-        dir_l = game.direction == Direction.LEFT
-        dir_r = game.direction == Direction.RIGHT
-        dir_u = game.direction == Direction.UP
-        dir_d = game.direction == Direction.DOWN
+        for tail in game.snake[1:]:
+            state_blue[
+                int(tail.y / BLOCK_SIZE),
+                int(tail.x / BLOCK_SIZE),
+            ] = 1
 
-        state = [
-            # Danger straight
-            (dir_r and game.is_collision(point_r))
-            or (dir_l and game.is_collision(point_l))
-            or (dir_u and game.is_collision(point_u))
-            or (dir_d and game.is_collision(point_d)),
-            # Danger right
-            (dir_u and game.is_collision(point_r))
-            or (dir_d and game.is_collision(point_l))
-            or (dir_l and game.is_collision(point_u))
-            or (dir_r and game.is_collision(point_d)),
-            # Danger left
-            (dir_d and game.is_collision(point_r))
-            or (dir_u and game.is_collision(point_l))
-            or (dir_r and game.is_collision(point_u))
-            or (dir_l and game.is_collision(point_d)),
-            # Move direction
-            dir_l,
-            dir_r,
-            dir_u,
-            dir_d,
-            # Food location
-            game.food.x < game.head.x,  # food left
-            game.food.x > game.head.x,  # food right
-            game.food.y < game.head.y,  # food up
-            game.food.y > game.head.y,  # food down
-        ]
+        # Green
+        state_green = np.zeros((ROWS + 2, COLONS + 2), dtype=np.int16)
 
-        return np.array(state, dtype=int)
+        state_green[
+            int(game.snake[0].y / BLOCK_SIZE + 1), int(game.snake[0].x / BLOCK_SIZE + 1)
+        ] = 1
+
+        # Red
+        state_red = np.zeros((ROWS, COLONS), dtype=np.int16)
+
+        state_red[int(game.food.y / BLOCK_SIZE), int(game.food.x / BLOCK_SIZE)] = 1
+
+        return np.concatenate(
+            [state_blue.flatten(), state_green.flatten(), state_red.flatten()]
+        )
 
     def remember(self, state, action, reward, next_state, done):
         self.memory.append((state, action, reward, next_state, done))
@@ -80,9 +74,9 @@ class Agent:
 
     def get_action(self, state):
         # random moves: tradeoff exploration / exploition
-        self.epsilon = 200 - self.n_games
+        self.epsilon = 8000 - self.n_games
         final_move = [0, 0, 0]
-        if random.randint(0, 200) < self.epsilon:
+        if random.randint(0, 10000) < self.epsilon:
             move = random.randint(0, 2)
             final_move[move] = 1
         else:
@@ -97,10 +91,14 @@ class Agent:
 def train():
     plot_scores = []
     plot_mean_scores = []
-    total_score = 0
+
     record = 0
+    idx_img_save = 0
+    show_every = 50
+    save_every = 200
+
     agent = Agent()
-    game = SnakeGameAI()
+    game = SnakeGameAI(COLONS, ROWS)
 
     while True:
         # get old state
@@ -127,15 +125,23 @@ def train():
 
             if score > record:
                 record = score
-                agent.model.save()
-
-            print("Game:", agent.n_games, "Score:", score, "Record:", record)
 
             plot_scores.append(score)
-            total_score += score
-            mean_score = total_score / agent.n_games
+
+            mean_score = sum(plot_scores[-100:]) / len(plot_scores[-100:])
             plot_mean_scores.append(mean_score)
-            plot(plot_scores, plot_mean_scores)
+
+            if game.show_display or agent.n_games % show_every == 0:
+                print("Game:", agent.n_games, "Score:", score, "Record:", record)
+
+                if agent.n_games % save_every == 0:
+                    agent.model.save()
+                    save_plot = True
+                    idx_img_save += save_every
+                else:
+                    save_plot = False
+
+                plot(plot_scores, plot_mean_scores, save_plot, idx_img_save)
 
 
 if __name__ == "__main__":

@@ -17,6 +17,8 @@ class Direction(Enum):
 
 
 Point = namedtuple("Point", "x, y")
+Game_board_size = namedtuple("Game_board_size", "rows, columns")
+
 
 # rgb colors
 WHITE = (255, 255, 255)
@@ -28,16 +30,18 @@ GREEN2 = (0, 200, 200)
 BLACK = (0, 0, 0)
 
 
+size = Game_board_size(24, 32)
 BLOCK_SIZE = 20
-SPEED = 10
+SPEED = 50
 
 
 class SnakeGameAI:
-    def __init__(self, w=200, h=200) -> None:
-        self.w = w
-        self.h = h
+    def __init__(self, w=size.columns, h=size.rows) -> None:
+        self.w = w * BLOCK_SIZE
+        self.h = h * BLOCK_SIZE
 
         # init display
+        self.show_display = True
         self.display = pygame.display.set_mode((self.w, self.h))
         pygame.display.set_caption("Snoken")
         self.clock = pygame.time.Clock()
@@ -74,6 +78,10 @@ class SnakeGameAI:
             if event.type == pygame.QUIT:
                 pygame.quit()
                 quit()
+            if event.type == pygame.KEYDOWN:
+                if event.key == pygame.K_d:
+                    self.show_display = not self.show_display
+                    print(f"{self.show_display=}")
 
         # 2. move
         self._move(action)  # update the head
@@ -84,20 +92,28 @@ class SnakeGameAI:
         game_over = False
         if self.is_collision() or self.frame_iteration > 100 * len(self.snake):
             game_over = True
-            reward = -10
+            reward = -40
             return reward, game_over, self.score
 
         # 4. place new food or just move
         if self.head == self.food:
             self.score += 1
-            reward = 10
+            reward = 100
+            # TODO bryt om ormen fyller spelplanen  
             self._place_food()
         else:
             self.snake.pop()
+            # if action == [1, 0, 0]:
+            #    reward = -1
+            # else:
+            #    reward = -2
 
         # 5. update ui and clock
-        self._update_ui()
-        self.clock.tick(SPEED)
+        if self.show_display:
+            self._update_ui()
+            self.clock.tick(SPEED)
+        else:
+            self.clock.tick()
 
         # 6. return game over and score
         return reward, game_over, self.score

@@ -4,7 +4,7 @@ from IPython import display
 plt.ion()
 
 
-def plot(scores, mean_scores):
+def plot(scores, mean_scores, save_plot, idx_img):
     display.clear_output(wait=True)
     display.display(plt.gcf())
     plt.clf()
@@ -18,3 +18,5 @@ def plot(scores, mean_scores):
     plt.text(len(mean_scores) - 1, mean_scores[-1], str(mean_scores[-1]))
     plt.show(block=False)
     plt.pause(0.1)
+    if save_plot:
+        plt.savefig(f"figures/plot_{idx_img}")
