@@ -19,4 +19,4 @@ def plot(scores, mean_scores, save_plot, idx_img):
     plt.show(block=False)
     plt.pause(0.1)
     if save_plot:
-        plt.savefig(f"figures/plot_{idx_img}")
+        plt.savefig(f"figures/temp/plot_{idx_img}")

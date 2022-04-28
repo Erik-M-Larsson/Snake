@@ -10,10 +10,10 @@ font = pygame.font.SysFont("arial", 25)
 
 
 class Direction(Enum):
-    RIGHT = 1
-    LEFT = 2
-    UP = 3
-    DOWN = 4
+    RIGHT = 0
+    LEFT = 1
+    UP = 2
+    DOWN = 3
 
 
 Point = namedtuple("Point", "x, y")
@@ -31,8 +31,8 @@ BLACK = (0, 0, 0)
 
 
 size = Game_board_size(24, 32)
-BLOCK_SIZE = 20
-SPEED = 50
+BLOCK_SIZE = 80
+SPEED = 4
 
 
 class SnakeGameAI:
@@ -63,12 +63,17 @@ class SnakeGameAI:
         self.food = None
         self._place_food()
         self.frame_iteration = 0
+        if self.show_display:
+            self._update_ui()
+            pygame.time.wait(300)
+            self.clock.tick(SPEED)
 
     def _place_food(self):
         x = random.randint(0, (self.w - BLOCK_SIZE) // BLOCK_SIZE) * BLOCK_SIZE
         y = random.randint(0, (self.h - BLOCK_SIZE) // BLOCK_SIZE) * BLOCK_SIZE
         self.food = Point(x, y)
         if self.food in self.snake:
+            # print("Apple cannot be place inside snake")
             self._place_food()
 
     def play_step(self, action):
@@ -76,6 +81,7 @@ class SnakeGameAI:
         # 1. collect user input
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
+                print("Quiting game")
                 pygame.quit()
                 quit()
             if event.type == pygame.KEYDOWN:
@@ -84,6 +90,7 @@ class SnakeGameAI:
                     print(f"{self.show_display=}")
 
         # 2. move
+
         self._move(action)  # update the head
         self.snake.insert(0, self.head)
 
@@ -92,22 +99,34 @@ class SnakeGameAI:
         game_over = False
         if self.is_collision() or self.frame_iteration > 100 * len(self.snake):
             game_over = True
-            reward = -40
+            reward = -10
+            if self.show_display:
+                self.snake.pop()
+                self._update_ui()
+                pygame.time.wait(400)
             return reward, game_over, self.score
 
         # 4. place new food or just move
         if self.head == self.food:
             self.score += 1
-            reward = 100
-            # TODO bryt om ormen fyller spelplanen  
+            reward = 10
+
+            if len(self.snake) == self.w * self.h / BLOCK_SIZE**2:
+                if self.show_display:
+                    print(f"Reached max length {len(self.snake)}")
+                    self._update_ui()
+                    pygame.time.wait(500)
+
+                game_over = True
+                return reward, game_over, self.score
+
             self._place_food()
         else:
             self.snake.pop()
             # if action == [1, 0, 0]:
             #    reward = -1
             # else:
-            #    reward = -2
-
+            #    reward = -2t
         # 5. update ui and clock
         if self.show_display:
             self._update_ui()
@@ -138,63 +157,58 @@ class SnakeGameAI:
     def _update_ui(self):
         self.display.fill(BLACK)
 
-        # draw head
-        pygame.draw.rect(
-            self.display,
-            GREEN1,
-            pygame.Rect(self.snake[0].x, self.snake[0].y, BLOCK_SIZE, BLOCK_SIZE),
-        )
-        pygame.draw.rect(
-            self.display,
-            GREEN2,
-            pygame.Rect(self.snake[0].x + 4, self.snake[0].y + 4, 12, 12),
-        )
+        # draw apple
+        self._draw_block(self.food.x, self.food.y, BLOCK_SIZE, BLACK, RED)
 
         # draw tail
         for pt in self.snake[1:]:
-            pygame.draw.rect(
-                self.display, BLUE1, pygame.Rect(pt.x, pt.y, BLOCK_SIZE, BLOCK_SIZE)
-            )
-            pygame.draw.rect(
-                self.display, BLUE2, pygame.Rect(pt.x + 4, pt.y + 4, 12, 12)
+            self._draw_block(
+                pt.x,
+                pt.y,
+                BLOCK_SIZE,
+                BLUE1,
+                BLUE2,
             )
 
-        pygame.draw.rect(
-            self.display,
-            RED,
-            pygame.Rect(self.food.x, self.food.y, BLOCK_SIZE, BLOCK_SIZE),
-        )
+        # draw head
+        self._draw_block(self.snake[0].x, self.snake[0].y, BLOCK_SIZE, GREEN1, GREEN2)
 
         text = font.render(f"Score: {self.score}", True, WHITE)
         self.display.blit(text, [0, 0])
         pygame.display.flip()
 
     def _move(self, action):
-        # [straight, right, left]
 
-        clock_wise = [Direction.RIGHT, Direction.DOWN, Direction.LEFT, Direction.UP]
-        idx = clock_wise.index(self.direction)
-
-        if np.array_equal(action, [1, 0, 0]):
-            new_dir = clock_wise[idx]  # no change
-        elif np.array_equal(action, [0, 1, 0]):
-            next_idx = (idx + 1) % 4
-            new_dir = clock_wise[next_idx]  # right turn
-        else:
-            next_idx = (idx - 1) % 4
-            new_dir = clock_wise[next_idx]  # left turn
-
-        self.direction = new_dir
-
+        self.direction = action
         x = self.head.x
         y = self.head.y
-        if self.direction == Direction.RIGHT:
+        if self.direction == Direction.RIGHT.value:
             x += BLOCK_SIZE
-        elif self.direction == Direction.LEFT:
+        elif self.direction == Direction.LEFT.value:
             x -= BLOCK_SIZE
-        elif self.direction == Direction.DOWN:
+        elif self.direction == Direction.DOWN.value:
             y += BLOCK_SIZE
-        elif self.direction == Direction.UP:
+        elif self.direction == Direction.UP.value:
             y -= BLOCK_SIZE
 
         self.head = Point(x, y)
+
+    def _draw_block(self, x, y, w, color_outer, color_inner):
+        pygame.draw.rect(
+            self.display,
+            color_outer,
+            pygame.Rect(x, y, w, w),
+            border_radius=4,
+        )
+        w_boarder = w // 5
+        pygame.draw.rect(
+            self.display,
+            color_inner,
+            pygame.Rect(
+                x + w_boarder,
+                y + w_boarder,
+                w - 2 * w_boarder,
+                w - 2 * w_boarder,
+            ),
+            border_radius=3,
+        )

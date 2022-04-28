@@ -1,7 +1,7 @@
 import torch
 import random
 import numpy as np
-from game import BLOCK_SIZE, SnakeGameAI, Direction, Point, Game_board_size
+from game import BLOCK_SIZE, SnakeGameAI  # , Direction, Point, Game_board_size
 from collections import deque
 from model import Linear_QNet, QTrainer
 from helper import *
@@ -13,6 +13,8 @@ LR = 0.001
 ROWS = 4  # 24  # even number
 COLONS = 4  # 32  # even number
 
+SAVED_FILE = "model.pth"
+
 
 class Agent:
     def __init__(self) -> None:
@@ -20,13 +22,20 @@ class Agent:
         self.epsilon = 0  # randomness
         self.gamma = 0.9  # discount rate <1
         self.memory = deque(maxlen=MAX_MEMORY)
-        input_size = (ROWS + 2) * (COLONS + 2) + 2 * ROWS * COLONS
-        hidden_size = 2
-        while hidden_size < input_size:
-            hidden_size *= 2
 
-        print(f"{input_size=}, {hidden_size=}")
-        self.model = Linear_QNet(input_size, hidden_size, hidden_size, 3)
+        input_size = (ROWS + 2) * (COLONS + 2) + 2 * ROWS * COLONS
+        hidden_size_1 = 2
+        while hidden_size_1 < input_size:
+            hidden_size_1 *= 2
+        hidden_size_2 = hidden_size_1 // 2
+        output_size = 4
+
+        print(f"{input_size=}, {hidden_size_1=}, {hidden_size_2=}, {output_size=}")
+        self.model = Linear_QNet(input_size, hidden_size_1, hidden_size_2, 4)
+
+        if SAVED_FILE is not None:
+            print("Loading saved model...")
+            self.model.load(SAVED_FILE)
 
         self.trainer = QTrainer(self.model, lr=LR, gamma=self.gamma)
 
@@ -42,10 +51,10 @@ class Agent:
             ] = 1
 
         # Green
-        state_green = np.zeros((ROWS + 2, COLONS + 2), dtype=np.int16)
+        state_green = np.zeros((ROWS + 2, COLONS + 2), dtype=np.int16) # TODO avlägsna ramen
 
         state_green[
-            int(game.snake[0].y / BLOCK_SIZE + 1), int(game.snake[0].x / BLOCK_SIZE + 1)
+            int(game.snake[0].y / BLOCK_SIZE + 1), int(game.snake[0].x / BLOCK_SIZE + 1) # TODO kolla att inte utanför spelplan
         ] = 1
 
         # Red
@@ -74,16 +83,16 @@ class Agent:
 
     def get_action(self, state):
         # random moves: tradeoff exploration / exploition
-        self.epsilon = 8000 - self.n_games
-        final_move = [0, 0, 0]
-        if random.randint(0, 10000) < self.epsilon:
-            move = random.randint(0, 2)
-            final_move[move] = 1
+        self.epsilon = 2000 - self.n_games
+        # final_move = [0, 0, 0, 0]
+        if random.randint(0, 2500) < self.epsilon and SAVED_FILE is None:
+            final_move = random.randint(0, 3)
+            # final_move[move] = 1
         else:
             state0 = torch.tensor(state, dtype=torch.float)
             prediction = self.model(state0)
-            move = torch.argmax(prediction).item()
-            final_move[move] = 1
+            final_move = torch.argmax(prediction).item()
+            # final_move[move] = 1
 
         return final_move
 
@@ -98,11 +107,21 @@ def train():
     save_every = 200
 
     agent = Agent()
+
+    # for var_name in agent.model.state_dict():
+    #    print(var_name, "\t", agent.model.state_dict()[var_name])
+
     game = SnakeGameAI(COLONS, ROWS)
 
+    # for var_name in agent.model.state_dict():
+    #    print(var_name, "\t", agent.model.state_dict()[var_name])
+
     while True:
+
         # get old state
-        state_old = agent.get_state(game)
+        state_old = agent.get_state(
+            game
+        )  # TODO skulle det inte vara snabbare att bara kopiera final_move från förra iterationen?
 
         # get move
         final_move = agent.get_action(state_old)
@@ -127,8 +146,8 @@ def train():
                 record = score
 
             plot_scores.append(score)
-
-            mean_score = sum(plot_scores[-100:]) / len(plot_scores[-100:])
+            last_n_scores = plot_scores[-500:]
+            mean_score = sum(last_n_scores) / len(last_n_scores)
             plot_mean_scores.append(mean_score)
 
             if game.show_display or agent.n_games % show_every == 0:

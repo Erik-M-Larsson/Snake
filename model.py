@@ -1,7 +1,3 @@
-from functools import lru_cache
-from math import gamma
-from pyexpat import model
-from turtle import forward
 import torch
 import torch.nn as nn
 import torch.optim as optim
@@ -29,6 +25,14 @@ class Linear_QNet(nn.Module):
 
         file_name = os.path.join(model_folder_path, file_name)
         torch.save(self.state_dict(), file_name)
+
+    def load(self, file_name="model.pth"):
+
+        model_folder_path = "./model"
+        file_name = os.path.join(model_folder_path, file_name)
+
+        self.load_state_dict(torch.load(file_name))
+        self.eval()
 
 
 class QTrainer:
@@ -63,8 +67,8 @@ class QTrainer:
                 Q_new = reward[idx] + self.gamma * torch.max(
                     self.model(next_state[idx])
                 )
-
-            target[idx][torch.argmax(action).item()] = Q_new
+            # print(action[idx], ":", action[idx].item())
+            target[idx][action[idx].item()] = Q_new
         # 2: Q_new = r + y  * max(next_predicted Q value)
         # pred.clone()
         # preds[argmax(action)] = Q_new
