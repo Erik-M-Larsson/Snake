@@ -12,6 +12,8 @@ class Linear_QNet(nn.Module):
         self.linear2 = nn.Linear(hidden1_size, hidden2_size)
         self.linear3 = nn.Linear(hidden2_size, output_size)
 
+        self.layers = f"{input_size}_{hidden1_size}_{hidden2_size}_{output_size}"
+
     def forward(self, x):
         x = F.relu(self.linear1(x))
         x = F.relu(self.linear2(x))
@@ -19,7 +21,8 @@ class Linear_QNet(nn.Module):
         return x
 
     def save(self, file_name="model.pth"):
-        model_folder_path = "./model"
+
+        model_folder_path = "./model/temp"
         if not os.path.exists(model_folder_path):
             os.makedirs(model_folder_path)
 

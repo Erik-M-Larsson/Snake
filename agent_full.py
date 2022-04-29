@@ -13,7 +13,7 @@ LR = 0.001
 ROWS = 4  # 24  # even number
 COLONS = 4  # 32  # even number
 
-SAVED_FILE = "model.pth"
+SAVED_FILE = None  # "model.pth"
 
 
 class Agent:
@@ -23,7 +23,7 @@ class Agent:
         self.gamma = 0.9  # discount rate <1
         self.memory = deque(maxlen=MAX_MEMORY)
 
-        input_size = (ROWS + 2) * (COLONS + 2) + 2 * ROWS * COLONS
+        input_size = 3 * ROWS * COLONS
         hidden_size_1 = 2
         while hidden_size_1 < input_size:
             hidden_size_1 *= 2
@@ -51,11 +51,13 @@ class Agent:
             ] = 1
 
         # Green
-        state_green = np.zeros((ROWS + 2, COLONS + 2), dtype=np.int16) # TODO avlägsna ramen
+        state_green = np.zeros((ROWS, COLONS), dtype=np.int16)
 
-        state_green[
-            int(game.snake[0].y / BLOCK_SIZE + 1), int(game.snake[0].x / BLOCK_SIZE + 1) # TODO kolla att inte utanför spelplan
-        ] = 1
+        row_idx = int(game.snake[0].y / BLOCK_SIZE)
+        colon_idx = int(game.snake[0].x / BLOCK_SIZE)
+
+        if row_idx in range(1, ROWS) and colon_idx in range(1, COLONS):
+            state_green[row_idx, colon_idx] = 1
 
         # Red
         state_red = np.zeros((ROWS, COLONS), dtype=np.int16)
@@ -102,19 +104,14 @@ def train():
     plot_mean_scores = []
 
     record = 0
-    idx_img_save = 0
+
     show_every = 50
     save_every = 200
+    plot_file_name = None
 
     agent = Agent()
 
-    # for var_name in agent.model.state_dict():
-    #    print(var_name, "\t", agent.model.state_dict()[var_name])
-
     game = SnakeGameAI(COLONS, ROWS)
-
-    # for var_name in agent.model.state_dict():
-    #    print(var_name, "\t", agent.model.state_dict()[var_name])
 
     while True:
 
@@ -154,13 +151,20 @@ def train():
                 print("Game:", agent.n_games, "Score:", score, "Record:", record)
 
                 if agent.n_games % save_every == 0:
-                    agent.model.save()
+
                     save_plot = True
-                    idx_img_save += save_every
+
+                    file_version_string = (
+                        f"{ROWS}x{COLONS}_{agent.model.layers}_{agent.n_games}"
+                    )
+                    model_file_name = f"model_{file_version_string}.pth"
+                    plot_file_name = f"plot_{file_version_string}.png"
+
+                    agent.model.save(model_file_name)
                 else:
                     save_plot = False
 
-                plot(plot_scores, plot_mean_scores, save_plot, idx_img_save)
+                plot(plot_scores, plot_mean_scores, save_plot, plot_file_name)
 
 
 if __name__ == "__main__":
